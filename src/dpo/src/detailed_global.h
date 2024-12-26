@@ -60,7 +60,7 @@ class DetailedGlobalSwap : public DetailedGenerator
   void stats() override;
   void init(DetailedMgr* mgr) override;
 
- private:
+ //private:
   void globalSwap();  // tries to avoid overlap.
   bool calculateEdgeBB(Edge* ed, Node* nd, Rectangle& bbox);
   bool getRange(Node*, Rectangle&);
@@ -68,6 +68,10 @@ class DetailedGlobalSwap : public DetailedGenerator
   double delta(Node* ndi, Node* ndj);
 
   bool generate(Node* ndi);
+
+  void globalSwapMultiLoop(); // Run greedy then SA
+ 
+ private:
 
   // Standard stuff.
   DetailedMgr* mgr_;

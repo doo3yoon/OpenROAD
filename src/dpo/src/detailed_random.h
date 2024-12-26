@@ -91,6 +91,17 @@ class DetailedRandom
   bool isOperator(char ch) const;
   bool isObjective(char ch) const;
   bool isNumber(char ch) const;
+  
+  double updateSolution(const std::vector<int>& bottom, 
+                        const std::vector<int>& left);
+
+  void getSolution(std::vector<int>& bottom,  std::vector<int>& left);
+  
+  // if coolingRate <= 0.0,  then use greedy
+  double worker(float coolingRate,  float initT, int numSteps,
+    int seed,  double normTotalCost);
+   
+  double goGWTW();
 
   void collectCandidates();
 

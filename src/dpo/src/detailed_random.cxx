@@ -54,6 +54,9 @@
 #include "detailed_hpwl.h"
 #include "detailed_objective.h"
 #include "detailed_vertical.h"
+#include <iostream>
+#include <random>
+
 
 using utl::DPO;
 
@@ -291,7 +294,10 @@ void DetailedRandom::run(DetailedMgr* mgrPtr, std::vector<std::string>& args)
 
   for (int p = 1; p <= passes; p++) {
     mgrPtr_->resortSegments();  // Needed?
-    double change = go();
+    //double change = go();
+    double change = goGWTW();
+    std::cout << "change : " << change << std::endl;
+    
     mgrPtr_->getLogger()->info(
         DPO,
         327,
@@ -431,64 +437,152 @@ double DetailedRandom::go()
 
   std::vector<int> gen_count(generators_.size());
   std::fill(gen_count.begin(), gen_count.end(), 0);
-  for (int attempt = 0; attempt < maxAttempts; attempt++) {
-    // Pick a generator at random.
-    int g = (int) mgrPtr_->getRandom(generators_.size());
-    ++gen_count[g];
-    // Generate a move list.
-    if (generators_[g]->generate(mgrPtr_, candidates_) == false) {
-      // Failed to generate anything so just move on to the next attempt.
-      continue;
-    }
-
-    // The generator has provided a successful move which is stored in the
-    // manager.  We need to evaluate that move to see if we should accept
-    // or reject it.  Scan over the objective functions and use the move
-    // information to compute the weighted deltas; an overall weighted delta
-    // better than zero implies improvement.
-    for (size_t i = 0; i < objectives_.size(); i++) {
-      // XXX: NEED TO WEIGHT EACH OBJECTIVE!
-      double change = objectives_[i]->delta(mgrPtr_->getNMoved(),
-                                            mgrPtr_->getMovedNodes(),
-                                            mgrPtr_->getCurLeft(),
-                                            mgrPtr_->getCurBottom(),
-                                            mgrPtr_->getCurOri(),
-                                            mgrPtr_->getNewLeft(),
-                                            mgrPtr_->getNewBottom(),
-                                            mgrPtr_->getNewOri());
-
-      deltaCost_[i] = change;
-      nextCost_[i] = currCost_[i] - deltaCost_[i];  // -delta is +ve is less.
-    }
-    const double nextTotalCost = eval(nextCost_, expr_);
-
-    //        std::cout << boost::format( "Move consisting of %d cells generated
-    //        benefit of %.2lf; Will %s.\n" )
-    //            % mgrPtr_->nMoved_ % delta % ((delta>0.)?"accept":"reject");
-
-    //        if( delta > 0.0 )
-    if (nextTotalCost <= currTotalCost) {
-      mgrPtr_->acceptMove();
-      for (auto objective : objectives_) {
-        objective->accept();
+  
+  std::cout << "maximum attempts" << " " << maxAttempts << std::endl;
+  bool SAFlag = mgrPtr_->getSAFlag();
+  //SAFlag = false;
+  if (SAFlag == false) {
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      // Pick a generator at random.
+      int g = (int) mgrPtr_->getRandom(generators_.size());
+      ++gen_count[g];
+      // Generate a move list.
+      if (generators_[g]->generate(mgrPtr_, candidates_) == false) {
+        // Failed to generate anything so just move on to the next attempt.
+        continue;
       }
 
-      // A great, but time-consuming, check here is to recompute the costs from
-      // scratch and make sure they are the same as the incrementally computed
-      // costs.  Very useful for debugging!  Could do this check ever so often
-      // or just at the end...
-      ;
+      // The generator has provided a successful move which is stored in the
+      // manager.  We need to evaluate that move to see if we should accept
+      // or reject it.  Scan over the objective functions and use the move
+      // information to compute the weighted deltas; an overall weighted delta
+      // better than zero implies improvement.
       for (size_t i = 0; i < objectives_.size(); i++) {
-        currCost_[i] = nextCost_[i];
+        // XXX: NEED TO WEIGHT EACH OBJECTIVE!
+        double change = objectives_[i]->delta(mgrPtr_->getNMoved(),
+                                              mgrPtr_->getMovedNodes(),
+                                              mgrPtr_->getCurLeft(),
+                                              mgrPtr_->getCurBottom(),
+                                              mgrPtr_->getCurOri(),
+                                              mgrPtr_->getNewLeft(),
+                                              mgrPtr_->getNewBottom(),
+                                              mgrPtr_->getNewOri());
+
+        deltaCost_[i] = change;
+        nextCost_[i] = currCost_[i] - deltaCost_[i];  // -delta is +ve is less.
       }
-      currTotalCost = nextTotalCost;
-    } else {
-      mgrPtr_->rejectMove();
-      for (auto objective : objectives_) {
-        objective->reject();
+      const double nextTotalCost = eval(nextCost_, expr_);
+
+      //        std::cout << boost::format( "Move consisting of %d cells generated
+      //        benefit of %.2lf; Will %s.\n" )
+      //            % mgrPtr_->nMoved_ % delta % ((delta>0.)?"accept":"reject");
+
+      //        if( delta > 0.0 )
+      if (nextTotalCost <= currTotalCost) {
+        mgrPtr_->acceptMove();
+        for (auto objective : objectives_) {
+          objective->accept();
+        }
+
+        // A great, but time-consuming, check here is to recompute the costs from
+        // scratch and make sure they are the same as the incrementally computed
+        // costs.  Very useful for debugging!  Could do this check ever so often
+        // or just at the end...
+        ;
+        for (size_t i = 0; i < objectives_.size(); i++) {
+          currCost_[i] = nextCost_[i];
+        }
+        currTotalCost = nextTotalCost;
+      } else {
+        mgrPtr_->rejectMove();
+        for (auto objective : objectives_) {
+          objective->reject();
+        }
       }
-    }
+    }    
+  } else { // run simulated annealing
+    double normTotalCost = currTotalCost;
+    double initT = mgrPtr_->getInitT();
+    double endT = mgrPtr_->getEndT();
+    int numSteps = maxAttempts;
+    //double coolingRate = std::exp(std::log(endT / initT) / numSteps);
+    double coolingRate = mgrPtr_->getCoolingRate();
+    std::cout << "coolingRate : " << coolingRate << std::endl;
+    double T = initT;
+    int seed = mgrPtr_->getRandomSeed();
+    std::mt19937 rand_gen(seed);
+    std::uniform_real_distribution<double> distribution(0.0, 1.0);
+    const int numPerturbs = 1000000;
+    //coolingRate = 0.9995;
+    std::cout << "[random swap] numPerturbs : " << numPerturbs << std::endl;
+    std::vector<float> T_list;
+    std::vector<float> cost_list;
+    T_list.push_back(T);
+    cost_list.push_back(currTotalCost);
+
+    for (int attempt = 0; attempt < numPerturbs; attempt++) {
+      // Pick a generator at random.
+      int g = (int) mgrPtr_->getRandom(generators_.size());
+      ++gen_count[g];
+      // Generate a move list.
+      if (generators_[g]->generate(mgrPtr_, candidates_) == false) {
+        // Failed to generate anything so just move on to the next attempt.
+        T *= coolingRate;
+        continue;
+      }
+
+      // The generator has provided a successful move which is stored in the
+      // manager.  We need to evaluate that move to see if we should accept
+      // or reject it.  Scan over the objective functions and use the move
+      // information to compute the weighted deltas; an overall weighted delta
+      // better than zero implies improvement.
+      for (size_t i = 0; i < objectives_.size(); i++) {
+        // XXX: NEED TO WEIGHT EACH OBJECTIVE!
+        double change = objectives_[i]->delta(mgrPtr_->getNMoved(),
+                                              mgrPtr_->getMovedNodes(),
+                                              mgrPtr_->getCurLeft(),
+                                              mgrPtr_->getCurBottom(),
+                                              mgrPtr_->getCurOri(),
+                                              mgrPtr_->getNewLeft(),
+                                              mgrPtr_->getNewBottom(),
+                                              mgrPtr_->getNewOri());
+
+        deltaCost_[i] = change;
+        nextCost_[i] = currCost_[i] - deltaCost_[i];  // -delta is +ve is less.
+      }
+      const double nextTotalCost = eval(nextCost_, expr_);
+      const double deltaTotalCost = nextTotalCost - currTotalCost;
+      T *= coolingRate;
+      const float num = distribution(rand_gen);
+      const float prob = (deltaTotalCost < 0) ? 1.0 : std::exp(-deltaTotalCost / normTotalCost / T);  
+
+      if (num <= prob) {
+        mgrPtr_->acceptMove();
+        for (auto objective : objectives_) {
+          objective->accept();
+        }
+
+        // A great, but time-consuming, check here is to recompute the costs from
+        // scratch and make sure they are the same as the incrementally computed
+        // costs.  Very useful for debugging!  Could do this check ever so often
+        // or just at the end...
+        ;
+        for (size_t i = 0; i < objectives_.size(); i++) {
+          currCost_[i] = nextCost_[i];
+        }
+        currTotalCost = nextTotalCost;
+      } else {
+        mgrPtr_->rejectMove();
+        for (auto objective : objectives_) {
+          objective->reject();
+        }
+      }
+
+      //T_list.push_back(T);
+      //cost_list.push_back(currTotalCost);
+    }     
   }
+  
   for (size_t i = 0; i < gen_count.size(); i++) {
     mgrPtr_->getLogger()->info(DPO,
                                332,

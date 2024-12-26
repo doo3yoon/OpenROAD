@@ -38,6 +38,7 @@
 #include <stack>
 #include <utility>
 
+
 #include "utility.h"
 #include "utl/Logger.h"
 
@@ -52,6 +53,7 @@
 #include "detailed_random.h"
 #include "detailed_reorder.h"
 #include "detailed_vertical.h"
+#include "detailed_mixed.h"
 
 using utl::DPO;
 
@@ -156,6 +158,8 @@ void Detailed::doDetailedCommand(std::vector<std::string>& args)
     command = "independent set matching";
   } else if (strcmp(args[0].c_str(), "gs") == 0) {
     command = "global swaps";
+  } else if (strcmp(args[0].c_str(), "ms") == 0) {
+    command = "mixed swaps";
   } else if (strcmp(args[0].c_str(), "vs") == 0) {
     command = "vertical swaps";
   } else if (strcmp(args[0].c_str(), "ro") == 0) {
@@ -175,10 +179,28 @@ void Detailed::doDetailedCommand(std::vector<std::string>& args)
     DetailedMis mis(arch_, network_, rt_);
     mis.run(mgr_, args);
   } else if (strcmp(args[0].c_str(), "gs") == 0) {
-    DetailedGlobalSwap gs(arch_, network_, rt_);
-    gs.run(mgr_, args);
+    //DetailedGlobalSwap gs(arch_, network_, rt_);
+    //gs.run(mgr_, args);
+    DetailedMixedSwap gs(arch_, network_, rt_, 1.0); 
+    gs.run(mgr_, args); 
+  } else if (strcmp(args[0].c_str(), "ms") == 0) {
+    //DetailedVerticalSwap vs(arch_, network_, rt_);
+    /*
+    int numSegs = 10;
+    std::vector<double> segRatios(numSegs);
+    for (int i = 0; i < numSegs; i++) {
+      segRatios[i] = 1.0 / (numSegs + 1) * (i + 1);
+    }
+    for (int i = 0; i < numSegs; i++) {
+      DetailedMixedSwap ms(arch_, network_, rt_, segRatios[i]);
+      ms.run(mgr_, args);
+    }
+    */
+    //DetailedMixedSwap ms(arch_, network_, rt_, 0.5);
+    //ms.run(mgr_, args);
   } else if (strcmp(args[0].c_str(), "vs") == 0) {
     DetailedVerticalSwap vs(arch_, network_, rt_);
+    //DetailedMixedSwap vs(arch_, network_, rt_, 0.0);
     vs.run(mgr_, args);
   } else if (strcmp(args[0].c_str(), "ro") == 0) {
     DetailedReorderer ro(arch_, network_);
@@ -191,6 +213,16 @@ void Detailed::doDetailedCommand(std::vector<std::string>& args)
     random.run(mgr_, args);
   } else {
     return;
+  }
+
+  {
+    DetailedReorderer ro(arch_, network_);
+    ro.run(mgr_, args);
+  }
+
+  {
+    DetailedOrient orienter(arch_, network_);
+    orienter.run(mgr_, "orient -f");
   }
 
   // Different checks which are useful for debugging.

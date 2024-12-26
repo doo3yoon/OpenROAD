@@ -57,10 +57,13 @@ target_sources(dpo
     src/detailed_reorder.cxx
     src/detailed_global.cxx
     src/detailed_vertical.cxx
+    src/detailed_mixed.cpp
+    src/detailed_mixed_GWTW.cpp
     src/detailed_displacement.cxx
     src/detailed_hpwl.cxx
     src/detailed_abu.cxx
     src/detailed_random.cxx
+    src/detailed_random_GWTW.cpp
     src/detailed_orient.cxx
 )
 

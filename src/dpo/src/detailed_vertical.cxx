@@ -46,6 +46,8 @@
 #include "rectangle.h"
 #include "utility.h"
 #include "utl/Logger.h"
+#include <random>
+#include <iostream>
 
 using utl::DPO;
 
@@ -153,9 +155,14 @@ void DetailedVerticalSwap::run(DetailedMgr* mgrPtr,
 //////////////////////////////////////////////////////////////////////////////
 void DetailedVerticalSwap::verticalSwap()
 {
+  //int numLoops = mgr_->getNumLoops();
+  //if (numLoops >= 1) {
+  //  verticalSwapMultiLoop();
+  //  return;
+  //}  
+    
   // Nothing for than random greedy improvement with only a hpwl objective
   // and done such that every candidate cell is considered once!!!
-
   traversal_ = 0;
   edgeMask_.resize(network_->getNumEdges());
   std::fill(edgeMask_.begin(), edgeMask_.end(), 0);
@@ -170,33 +177,184 @@ void DetailedVerticalSwap::verticalSwap()
   DetailedHPWL hpwlObj(network_);
   hpwlObj.init(mgr_, nullptr);  // Ignore orientation.
 
+  bool SAFlag = mgr_->getSAFlag(); 
+  SAFlag = false;
+
+  if (SAFlag == false) { 
+    double currHpwl = hpwlObj.curr();
+    // Consider each candidate cell once.
+    for (Node* ndi : candidates) {
+      if (generate(ndi) == false) {
+        continue;
+      }
+
+      const double delta = hpwlObj.delta(mgr_->getNMoved(),
+                                        mgr_->getMovedNodes(),
+                                        mgr_->getCurLeft(),
+                                        mgr_->getCurBottom(),
+                                        mgr_->getCurOri(),
+                                        mgr_->getNewLeft(),
+                                        mgr_->getNewBottom(),
+                                        mgr_->getNewOri());
+
+      const double nextHpwl = currHpwl - delta;  // -delta is +ve is less.
+      if (nextHpwl <= currHpwl) {
+        mgr_->acceptMove();
+        currHpwl = nextHpwl;
+      } else {
+        mgr_->rejectMove();
+      }
+    }
+
+    return;
+  }
+
   double currHpwl = hpwlObj.curr();
+  double nextHpwl = 0.0;
+  // Simulated annealing.
+  double normHpwl = currHpwl;
+  double initT = mgr_->getInitT();
+  double endT = mgr_->getEndT();
+  int numSteps = candidates.size();
+  //double coolingRate = std::exp(std::log(endT / initT) / numSteps);
+  double coolingRate = mgr_->getCoolingRate();
+  std::cout << "[Vertical Swap] : Cooling Rate : " << coolingRate << std::endl;
+  std::cout << "[Vertical Swap] : Num Steps : " << numSteps << std::endl;
+  
+  double T = initT;
+  int seed = mgr_->getRandomSeed();
+  std::mt19937 rand_gen(seed);
+  std::uniform_real_distribution<float> distribution(0.0, 1.0);
+
   // Consider each candidate cell once.
-  for (Node* ndi : candidates) {
-    if (generate(ndi) == false) {
+  for (auto ndi : candidates) {
+    if (!generate(ndi)) {
       continue;
     }
 
-    const double delta = hpwlObj.delta(mgr_->getNMoved(),
-                                       mgr_->getMovedNodes(),
-                                       mgr_->getCurLeft(),
-                                       mgr_->getCurBottom(),
-                                       mgr_->getCurOri(),
-                                       mgr_->getNewLeft(),
-                                       mgr_->getNewBottom(),
-                                       mgr_->getNewOri());
+    double delta = hpwlObj.delta(mgr_->getNMoved(),
+                                 mgr_->getMovedNodes(),
+                                 mgr_->getCurLeft(),
+                                 mgr_->getCurBottom(),
+                                 mgr_->getCurOri(),
+                                 mgr_->getNewLeft(),
+                                 mgr_->getNewBottom(),
+                                 mgr_->getNewOri());
+    
+    T *= coolingRate;
+    const float num = distribution(rand_gen);
+    const float prob =  (delta > 0) ? 1.0 : std::exp(delta / normHpwl / T);
 
-    const double nextHpwl = currHpwl - delta;  // -delta is +ve is less.
-
-    if (nextHpwl <= currHpwl) {
+    if (num <= prob) {
       mgr_->acceptMove();
-
-      currHpwl = nextHpwl;
+      currHpwl = currHpwl - delta;
     } else {
       mgr_->rejectMove();
     }
   }
 }
+
+
+
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+void DetailedVerticalSwap::verticalSwapMultiLoop()
+{
+  int numLoops = mgr_->getNumLoops();
+  double initT = mgr_->getInitT();
+  double coolingRate = mgr_->getCoolingRate();
+  double normHpwl = std::numeric_limits<double>::max();
+  double T = initT;
+  int seed = mgr_->getRandomSeed();
+  std::mt19937 rand_gen(seed);
+  std::uniform_real_distribution<float> distribution(0.0, 1.0);
+
+  std::cout << "[Vertical Swap] : Number of Loops : " << numLoops << std::endl;
+  std::cout << "[Vertical Swap] : Initial Temperature : " << initT << std::endl;
+  std::cout << "[Vertical Swap] : Cooling Rate : " << coolingRate << std::endl;
+  
+  std::vector<double> T_list;
+  std::vector<double> HPWL_list;  
+  T_list.reserve(100000);
+  HPWL_list.reserve(100000);
+  
+  for (int loopId = 0; loopId < numLoops; loopId++) {
+    traversal_ = 0;
+    edgeMask_.resize(network_->getNumEdges());
+    std::fill(edgeMask_.begin(), edgeMask_.end(), 0);
+
+    mgr_->resortSegments();
+
+    // Get candidate cells.
+    std::vector<Node*> candidates = mgr_->getSingleHeightCells();
+    mgr_->shuffle(candidates);
+
+    // Wirelength objective.
+    DetailedHPWL hpwlObj(network_);
+    hpwlObj.init(mgr_, nullptr);  // Ignore orientation.
+ 
+    double currHpwl = hpwlObj.curr();
+    if (loopId == 0) {
+      normHpwl = currHpwl;
+    }
+  
+    // Consider each candidate cell once.
+    for (auto ndi : candidates) {
+      if (!generate(ndi)) {
+        continue;
+      }
+
+      double delta = hpwlObj.delta(mgr_->getNMoved(),
+                                  mgr_->getMovedNodes(),
+                                  mgr_->getCurLeft(),
+                                  mgr_->getCurBottom(),
+                                  mgr_->getCurOri(),
+                                  mgr_->getNewLeft(),
+                                  mgr_->getNewBottom(),
+                                  mgr_->getNewOri());
+    
+      T *= coolingRate;
+      const float num = distribution(rand_gen);
+      const float prob =  (delta > 0) ? 1.0 : std::exp(delta / normHpwl / T);
+
+      if (num <= prob) {
+        mgr_->acceptMove();
+        currHpwl = currHpwl - delta;
+      } else {
+        mgr_->rejectMove();
+      }
+
+      T_list.push_back(T);
+      HPWL_list.push_back(currHpwl);
+    }
+  }
+
+
+  std::cout << "[Vertical Swap] number of moves : " << T_list.size() << std::endl;
+
+  /*
+  // Save the temperature and hpwl values
+  std::string filename = "SA_vertical_swap.csv";
+  std::ofstream file(filename);
+  if (file.is_open()) {
+    file << "Temperature, HPWL" << std::endl;
+    for (int i = 0; i < T_list.size(); i++) {
+      file << T_list[i] << " " << HPWL_list[i] << std::endl;
+    }
+    file.close();
+  } else {
+    std::cout << "Unable to open file : " << filename << std::endl;
+  }
+
+  exit(1);
+  */
+}
+
+
+
+
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////

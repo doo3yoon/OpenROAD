@@ -4,7 +4,7 @@ import helpers
 tech = Tech()
 tech.readLef("Nangate45/Nangate45.lef")
 
-design = helpers.make_design(tech)
+design = Design(tech)
 design.readDef("ibex.def")
 
 design.getOptdp().improvePlacement(1, 0, 0)

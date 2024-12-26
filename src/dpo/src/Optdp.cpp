@@ -92,6 +92,9 @@ void Optdp::init(odb::dbDatabase* db, utl::Logger* logger, dpl::Opendp* opendp)
 
 ////////////////////////////////////////////////////////////////
 void Optdp::improvePlacement(const int seed,
+                             const float init_T,
+                             const float cooling_rate,
+                             const float global_vertical_ratio,
                              const int max_displacement_x,
                              const int max_displacement_y,
                              const bool disallow_one_site_gaps)
@@ -116,6 +119,9 @@ void Optdp::improvePlacement(const int seed,
   mgr.setSeed(seed);
   mgr.setMaxDisplacement(max_displacement_x, max_displacement_y);
   mgr.setDisallowOneSiteGaps(disallow_one_site_gaps);
+  mgr.setInitT(init_T);
+  mgr.setCoolingRate(cooling_rate);
+  mgr.setGlobalVerticalRatio(global_vertical_ratio);
 
   // Legalization.  Doesn't particularly do much.  It only
   // populates the data structures required for detailed
@@ -135,15 +141,45 @@ void Optdp::improvePlacement(const int seed,
   dtParams.script_ = "";
   // Maximum independent set matching.
   dtParams.script_ += "mis -p 10 -t 0.005;";
+  dtParams.script_ += "gs -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+
+  if (false)  {
+  dtParams.script_ += "default -p 5 -f 20 -gen rng -obj hpwl -cost (hpwl);";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
   // Global swaps.
   dtParams.script_ += "gs -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Mixed swaps.
+  dtParams.script_ += "ms -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
   // Vertical swaps.
   dtParams.script_ += "vs -p 10 -t 0.005;";
-  // Small reordering.
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Small reordering.  
   dtParams.script_ += "ro -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
   // Random moves and swaps with hpwl as a cost function.  Use
   // random moves and hpwl objective right now.
   dtParams.script_ += "default -p 5 -f 20 -gen rng -obj hpwl -cost (hpwl);";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Global swaps.
+  dtParams.script_ += "gs -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Mixed swaps.
+  dtParams.script_ += "ms -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Vertical swaps.
+  dtParams.script_ += "vs -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Small reordering.
+  dtParams.script_ += "ro -p 10 -t 0.005;";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;";
+  // Random moves and swaps with hpwl as a cost function.  Use
+  // random moves and hpwl objective right now.
+  dtParams.script_ += "default -p 5 -f 20 -gen rng -obj hpwl -cost (hpwl);";
+  dtParams.script_ += "ro -p 10 -t 0.005 -w 6;"; 
+  }
 
   if (disallow_one_site_gaps) {
     dtParams.script_ += "disallow_one_site_gaps;";
@@ -694,12 +730,12 @@ void Optdp::createArchitecture()
 
   odb::Rect dieRect = block->getDieArea();
 
-  auto min_row_height = std::numeric_limits<int>::max();
+  odb::uint min_row_height = std::numeric_limits<odb::uint>::max();
   for (dbRow* row : block->getRows()) {
     min_row_height = std::min(min_row_height, row->getSite()->getHeight());
   }
 
-  std::map<int, std::unordered_set<std::string>> skip_list;
+  std::map<odb::uint, std::unordered_set<std::string>> skip_list;
 
   for (dbRow* row : block->getRows()) {
     if (row->getSite()->getClass() == odb::dbSiteClass::PAD) {

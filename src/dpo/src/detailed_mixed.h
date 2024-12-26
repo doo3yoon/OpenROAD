@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 // BSD 3-Clause License
 //
-// Copyright (c) 2021, Andrew Kennings
+// Copyright (c) 2024, Zhiang Wang (UCSD)
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "detailed_generator.h"
@@ -45,37 +46,69 @@ class Edge;
 class Network;
 class RoutingParams;
 
+class DetailedVerticalSwap;
+class DetailedGlobalSwap;
+
+
 // CLASSES ===================================================================
-class DetailedVerticalSwap : public DetailedGenerator
+class DetailedMixedSwap : public DetailedGenerator
 {
  public:
-  DetailedVerticalSwap(Architecture* arch, Network* network, RoutingParams* rt);
-  DetailedVerticalSwap();
+  DetailedMixedSwap(Architecture* arch, Network* network, RoutingParams* rt, double global_ratio);
+  DetailedMixedSwap();
 
   // Intefaces for scripting.
   void run(DetailedMgr* mgrPtr, const std::string& command);
   void run(DetailedMgr* mgrPtr, const std::vector<std::string>& args);
 
   // Interface for move generation.
-  bool generate(DetailedMgr* mgr, std::vector<Node*>& candidates) override;
-  void stats() override;
   void init(DetailedMgr* mgr) override;
+  void stats() override;
+ 
+  void mixedSwap();
 
-  //private:
-  void verticalSwap();  // tries to avoid overlap.
-  void verticalSwapMultiLoop(); 
-  bool calculateEdgeBB(const Edge* ed, const Node* nd, Rectangle& bbox);
-  bool getRange(Node*, Rectangle&);
+  void mixedSwapGWTW();
+
+  bool getRange(Node* nd, Rectangle& nodeBbox);
+
+  bool calculateEdgeBB(const Edge* ed,
+                       const Node* nd,
+                       Rectangle& bbox);
+
   double delta(Node* ndi, double new_x, double new_y);
   double delta(Node* ndi, Node* ndj);
-  bool generate(Node* ndi);
 
+  bool generateVerticalSwap(Node* ndi);
+  bool generateGlobalSwap(Node* ndi);
+  bool generateMove(DetailedMgr* mgr,
+                    std::vector<Node*>& candidates,
+                    bool isVertical);
+  bool generate(DetailedMgr* mgr, std::vector<Node*>& candidates) override 
+  { return true; };
+
+  double updateSolution(const std::vector<int>& bottom, 
+                        const std::vector<int>& left, 
+                        const std::vector<int>& segId);
+
+  void getSolution(std::vector<int>& bottom,  std::vector<int>& left, std::vector<int>& segId);
+  
+  // if coolingRate <= 0.0,  then use greedy
+  double worker(float coolingRate,  float initT, int numSteps,
+    float globalVerticalRatio, int seed,  double normHPWL);
+
+  void randomKickMove();
+ 
+  bool generateRandomMove(std::vector<Node*>& candidates);
+  
  private:
   // Standard stuff.
   DetailedMgr* mgr_;
   Architecture* arch_;
   Network* network_;
   RoutingParams* rt_;
+
+  double global_ratio_ = 1.0;
+  double random_ratio_ = 0.10;
 
   // Other.
   int skipNetsLargerThanThis_;

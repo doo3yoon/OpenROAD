@@ -78,6 +78,9 @@ class DetailedMgr
   DetailedMgr(Architecture* arch, Network* network, RoutingParams* rt);
   virtual ~DetailedMgr();
 
+  //DetailedMgr(const DetailedMgr&);
+  //DetailedMgr& operator=(const DetailedMgr&);
+
   void cleanup();
 
   Architecture* getArchitecture() const { return arch_; }
@@ -286,6 +289,18 @@ class DetailedMgr
     }
   };
 
+  // SA related parameters
+  double getInitT () const { return initT_; }
+  double getEndT() const { return endT_; }
+  int getRandomSeed() const { return randomSeed_; }
+  bool getSAFlag() const { return SAFlag_; }
+  double getCoolingRate() const { return coolingRate_;}
+  int getNumLoops() const { return numLoops_; }
+  double getGlobalVerticalRatio() const { return globalVerticalRatio_; }
+  void setInitT(float initT);
+  void setCoolingRate(float coolingRate);
+  void setGlobalVerticalRatio(float globalVerticalRatio);
+
  private:
   struct compareBlockages
   {
@@ -351,6 +366,15 @@ class DetailedMgr
   // For output.
   utl::Logger* logger_ = nullptr;
 
+  // SA related parameters
+  double initT_ = 1e-1;
+  double endT_ = 1e-12;
+  int randomSeed_ = 10;
+  bool SAFlag_ = true;
+  double coolingRate_ = 0.8;
+  int numLoops_ = 10;
+  double globalVerticalRatio_ = 0.5;
+
   // Info about rows.
   int numSingleHeightRows_;
   int singleRowHeight_;
@@ -389,6 +413,9 @@ class DetailedMgr
   // Original cell positions.
   std::vector<int> origBottom_;
   std::vector<int> origLeft_;
+
+  std::vector<int> bestBottom_;
+  std::vector<int> bestLeft_;
 
   std::vector<Rectangle> boxes_;
 

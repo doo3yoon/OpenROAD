@@ -44,13 +44,17 @@
   namespace dpo {
 
   void improve_placement_cmd(int seed,
+                             float init_T,
+                             float cooling_rate,
+                             float global_vertical_ratio, 
                              int max_displacement_x,
                              int max_displacement_y,
                              bool disallow_one_site_gaps)
   {
     dpo::Optdp* optdp = ord::OpenRoad::openRoad()->getOptdp();
     optdp->improvePlacement(
-        seed, max_displacement_x, max_displacement_y, disallow_one_site_gaps);
+        seed, init_T, cooling_rate, global_vertical_ratio,
+        max_displacement_x, max_displacement_y, disallow_one_site_gaps);
   }
 
   }  // namespace dpo

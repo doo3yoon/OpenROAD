@@ -33,12 +33,15 @@
 sta::define_cmd_args "improve_placement" {\
     [-random_seed seed]\
     [-max_displacement disp|{disp_x disp_y}]\
-    [-disallow_one_site_gaps]\
+    [-init_T init_T] \
+    [-cooling_rate cooling_rate] \
+    [-global_vertical_ratio global_vertical_ratio] \
+    [-disallow_one_site_gaps] \
 }
 
 proc improve_placement { args } {
   sta::parse_key_args "improve_placement" args \
-    keys {-random_seed -max_displacement} flags {-disallow_one_site_gaps}
+    keys {-random_seed -max_displacement -init_T -cooling_rate -global_vertical_ratio} flags {-disallow_one_site_gaps}
 
   if { [ord::get_db_block] == "NULL" } {
     utl::error DPO 2 "No design block found."
@@ -46,9 +49,29 @@ proc improve_placement { args } {
 
   set disallow_one_site_gaps [info exists flags(-disallow_one_site_gaps)]
   set seed 1
+  set init_T 1e-6
+  set cooling_rate 0.95
+  set global_vertical_ratio 0.5
+
   if { [info exists keys(-random_seed)] } {
     set seed $keys(-random_seed)
   }
+  
+  if { [info exists keys(-init_T)] } {
+    set init_T $keys(-init_T)
+    sta::check_positive_float "-init_T" $init_T
+  } 
+
+  if { [info exists keys(-cooling_rate)] } {
+    set cooling_rate $keys(-cooling_rate)
+    sta::check_positive_float "-cooling_rate" $cooling_rate
+  } 
+
+  if { [info exists keys(-global_vertical_ratio)] } {
+    set global_vertical_ratio $keys(-global_vertical_ratio)
+    sta::check_positive_float "-global_vertical_ratio" $global_vertical_ratio
+  }
+
   if { [info exists keys(-max_displacement)] } {
     set max_displacement $keys(-max_displacement)
     if { [llength $max_displacement] == 1 } {
@@ -69,9 +92,8 @@ proc improve_placement { args } {
   }
 
   sta::check_argc_eq0 "improve_placement" $args
-  dpo::improve_placement_cmd $seed $max_displacement_x $max_displacement_y $disallow_one_site_gaps
+  dpo::improve_placement_cmd $seed $init_T $cooling_rate $global_vertical_ratio $max_displacement_x $max_displacement_y $disallow_one_site_gaps
 }
 
 namespace eval dpo {
-
 }

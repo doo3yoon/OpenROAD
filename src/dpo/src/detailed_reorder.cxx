@@ -41,6 +41,7 @@
 #include "detailed_segment.h"
 #include "utility.h"
 #include "utl/Logger.h"
+#include <iostream>
 
 using utl::DPO;
 
@@ -90,7 +91,9 @@ void DetailedReorderer::run(DetailedMgr* mgrPtr,
       tol = std::atof(args[++i].c_str());
     }
   }
-  windowSize_ = std::min(4, std::max(2, windowSize_));
+  //windowSize_ = std::min(4, std::max(2, windowSize_));
+  //windowSize_ = 5;
+  std::cout << "window size" << windowSize_ << std::endl;
   tol = std::max(tol, 0.01);
 
   mgrPtr_->resortSegments();
@@ -127,6 +130,7 @@ void DetailedReorderer::run(DetailedMgr* mgrPtr,
       curr_imp);
 }
 
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 void DetailedReorderer::reorder()
@@ -145,6 +149,7 @@ void DetailedReorderer::reorder()
     if (nodes.size() < 2) {
       continue;
     }
+    // sort the cells in the segment by x position
     mgrPtr_->sortCellsInSeg(segId);
 
     int j = 0;
@@ -160,6 +165,10 @@ void DetailedReorderer::reorder()
       const int jstop = j - 1;
 
       // Single height cells in [jstrt,jstop].
+      //std::cout << "[DetailedReorderer::reorder] Reordering cells in segment "
+      //          << segId << " from " << jstrt << " to " << jstop << std::endl;
+      //std::cout << "[DetailedReorderer::reorder] Window size is " << windowSize_
+      //          << std::endl;
       for (int i = jstrt; i + windowSize_ <= jstop; ++i) {
         int istrt = i;
         const int istop = std::min(jstop, istrt + windowSize_ - 1);
